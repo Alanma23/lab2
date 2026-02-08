@@ -1,6 +1,4 @@
-Write a README file that contains the following:
-
-- Your name, your partner’s name, your board’s host name (e.g. ee180-10z.stanford.edu)
+- Alan Ma, Zhikai Huang, ee180-25@ee180-25z.stanford.edu
 - Each partner’s contribution to the assignment
 - A brief description of optimizations you tried, the outcome, and some explanation (why it worked / why it did not)
 - Report the final performance for both single thread and multithread (we will verify this with your code submission)
