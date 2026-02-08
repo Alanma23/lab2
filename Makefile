@@ -1,6 +1,8 @@
 # Set compiler args
 CC=g++
-CFLAGS=-Wall -c -fno-tree-vectorize
+# CFLAGS=-Wall -c -fno-tree-vectorize
+# no tree vectorize disables auto-vectorization, auto-vectorize w/ target ARM neon SIMD, O3 -> aggresive optimization
+CFLAGS=-Wall -c -O3 -ftree-vectorize -mfpu=neon
 LDFLAGS=
 LDLIBS=-L /usr/lib $$(pkg-config --cflags --libs opencv) -pthread
 ifeq ($(shell arch), armv7l)
