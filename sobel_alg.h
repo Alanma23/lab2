@@ -18,7 +18,8 @@
 #define STEP1 3
 #define PROC_FREQ 866000000
 #define PROC_EPC 1.4
-#define NCORES 1
+// #define NCORES 1
+#define NCORES 2
 
 using namespace cv;
 using namespace std;
@@ -39,8 +40,12 @@ struct opts {
 
 extern struct opts opts;
 
-void sobelCalc(Mat& img_gray, Mat& img_sobel_out);
-void grayScale(Mat& img, Mat& img_gray_out);
+// void sobelCalc(Mat& img_gray, Mat& img_sobel_out);
+// void grayScale(Mat& img, Mat& img_gray_out);
+
+void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start, int end);
+void grayScale(Mat& img, Mat& img_gray_out, int start, int end);
+
 
 void runSobelST();
 void *runSobelMT(void *ptr);

@@ -8,21 +8,55 @@ using namespace cv;
  * Output: None directly. Modifies a ref parameter img_gray_out
  * Desc: This module converts the image to grayscale
  ********************************************/
+
+ #include <arm_neon.h>
+ 
+// void grayScale(Mat& img, Mat& img_gray_out)
+// {
+//   // double color;
+//   float color;
+  
+//   // Convert to grayscale
+//   for (int i=0; i<img.rows; i++) {
+//     int i_step = STEP0*i;
+//     int j_step = 0;
+//     for (int j = 0; j<img.cols; j++, j_step += 3) {
+//       color = .114*img.data[i_step + j_step] +
+//               .587*img.data[i_step + j_step + 1] +
+//               .299*img.data[i_step + j_step + 2];
+//       img_gray_out.data[IMG_WIDTH*i + j] = color;
+//     }
+//   }
+// }
+
 void grayScale(Mat& img, Mat& img_gray_out)
 {
   // double color;
-  float color;
+  int total_pixels = img.rows * img.cols;
+  int i;
   
-  // Convert to grayscale
-  for (int i=0; i<img.rows; i++) {
-    int i_step = STEP0*i;
-    int j_step = 0;
-    for (int j = 0; j<img.cols; j++, j_step += 3) {
-      color = .114*img.data[i_step + j_step] +
-              .587*img.data[i_step + j_step + 1] +
-              .299*img.data[i_step + j_step + 2];
-      img_gray_out.data[IMG_WIDTH*i + j] = color;
-    }
+  // Weights -> integers (divide by 256) B = 29, G = 150, R = 77 
+  for (int i=0; i< total_pixels - 7; i+= 8) {
+    uint8x8x3_t rgb = vld3_u8(&img.data[i*3]); // 210-RGB
+
+    uint16x8_t r16 = vmovl_u8(rgb.val[2]); // to prevent overflow 16
+    uint16x8_t g16 = vmovl_u8(rgb.val[1]);
+    uint16x8_t b16 = vmovl_u8(rgb.val[0]);
+
+    uint16x8_t gray16 = vmulq_n_u16(b16, 29);
+    gray16 = vmlaq_n_u16(gray16, g16, 150);  // MA Ops
+    gray16 = vmlaq_n_u16(gray16, r16, 77);
+
+    uint8x8_t gray8 = vshrn_n_u16(gray16, 8);
+
+    vst1_u8(&img_gray_out.data[i], gray8);
+  }
+
+  for(int i = 0; i < total_pixels; i++) {
+    int color = (29 * img.data[i*3] + 
+      150 * img.data[i*3 + 1] + 
+      77 * img.data[i*3 + 2]) >> 8;
+    img_gray_out.data[i] = color;
   }
 }
 
