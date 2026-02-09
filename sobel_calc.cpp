@@ -29,7 +29,7 @@ using namespace cv;
 //   }
 // }
 
-void grayScale(Mat& img, Mat& img_gray_out)
+void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
 {
   // double color;
   int total_pixels = img.rows * img.cols;
@@ -71,11 +71,8 @@ void grayScale(Mat& img, Mat& img_gray_out)
  ********************************************/
 
 // EDITS: FUSED LOOP operations
-void sobelCalc(Mat& img_gray, Mat& img_sobel_out)
+void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
 {
-  // Mat img_outx = img_gray.clone();
-  // Mat img_outy = img_gray.clone();
-
   // Apply Sobel filter to black & white image
   unsigned short sobel_x, sobel_y, sobel_comb;
 
