@@ -52,27 +52,30 @@ void *runSobelMT(void *ptr)
   }
   pthread_mutex_unlock(&thread0);
 
-  // For now, we just kill the second thread. It's up to you to get it to compute
-  // the other half of the image.
-  if (myID != thread0_id) {
-    pthread_barrier_wait(&endSobel);
-    return NULL;
-  }
+  int tid = (pthread_equal(thread0_id, myID)) ? 0 : 1;
+
+  // // For now, we just kill the second thread. It's up to you to get it to compute
+  // // the other half of the image.
+  // if (myID != thread0_id) {
+  //   pthread_barrier_wait(&endSobel);
+  //   return NULL;
+  // }
 
   pc_init(&perf_counters, 0);
 
   // Start algorithm
+  // video capture stuff is for thread0 only
   CvCapture* video_cap;
-
-  if (opts.webcam) {
-    video_cap = cvCreateCameraCapture(-1);
-  } else {
-    video_cap = cvCreateFileCapture(opts.videoFile);
-  }
-
+  if (tid == 0) {
+    if (opts.webcam) {
+      video_cap = cvCreateCameraCapture(-1);
+    } else {
+      video_cap = cvCreateFileCapture(opts.videoFile);
+    }
   video_cap = cvCreateFileCapture(opts.videoFile);
   cvSetCaptureProperty(video_cap, CV_CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
   cvSetCaptureProperty(video_cap, CV_CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
+  }
 
   // Keep track of the frames
   int i = 0;
@@ -86,37 +89,51 @@ void *runSobelMT(void *ptr)
     src = cvQueryFrame(video_cap);
     pc_stop(&perf_counters);
 
+    // split up rows between 2 threads
+    int startrow = (tid == 0) ? 0 : src.rows / 2;
+    int endrow = (tid == 0) ? src.rows / 2 : src.rows;
+    
     cap_time = perf_counters.cycles.count;
     sobel_l1cm = perf_counters.l1_misses.count;
     sobel_ic = perf_counters.ic.count;
 
     // LAB 2, PART 2: Start parallel section
     pc_start(&perf_counters);
-    grayScale(src, img_gray, 0, src.rows);
+    grayScale(src, img_gray, startrow, endrow);
     pc_stop(&perf_counters);
+    pthread_barrier_wait(&grayscale_barrier);  // wait for both threads to finish grayscaling
 
     gray_time = perf_counters.cycles.count;
     sobel_l1cm += perf_counters.l1_misses.count;
     sobel_ic += perf_counters.ic.count;
 
     pc_start(&perf_counters);
-    sobelCalc(img_gray, img_sobel, 0, img_gray.rows);
+    sobelCalc(img_gray, img_sobel, startrow, endrow);
     pc_stop(&perf_counters);
+    pthread_barrier_wait(&sobel_barrier);     // wait for both threads to finish sobeling
 
     sobel_time = perf_counters.cycles.count;
     sobel_l1cm += perf_counters.l1_misses.count;
     sobel_ic += perf_counters.ic.count;
     // LAB 2, PART 2: End parallel section
 
-    pc_start(&perf_counters);
-    namedWindow(top, CV_WINDOW_AUTOSIZE);
-    imshow(top, img_sobel);
-    pc_stop(&perf_counters);
+    // end stuff
+    if (tid == 0) {
+      pc_start(&perf_counters);
+      namedWindow(top, CV_WINDOW_AUTOSIZE);
+      imshow(top, img_sobel);
+      pc_stop(&perf_counters);
+      char c = cvWaitKey(10);
+      if (c == 'q' || i >= opts.numFrames) {          // Press q to exit
+        break;
+      }
+      disp_time = perf_counters.cycles.count;
+      sobel_l1cm += perf_counters.l1_misses.count;
+      sobel_ic += perf_counters.ic.count;
+      i++;
+    }
 
-    disp_time = perf_counters.cycles.count;
-    sobel_l1cm += perf_counters.l1_misses.count;
-    sobel_ic += perf_counters.ic.count;
-
+    // TODO: protect these values
     cap_total += cap_time;
     gray_total += gray_time;
     sobel_total += sobel_time;
@@ -125,13 +142,7 @@ void *runSobelMT(void *ptr)
     disp_total += disp_time;
     total_fps += PROC_FREQ/float(cap_time + disp_time + gray_time + sobel_time);
     total_ipc += float(sobel_ic/float(cap_time + disp_time + gray_time + sobel_time));
-    i++;
-
-    // Press q to exit
-    char c = cvWaitKey(10);
-    if (c == 'q' || i >= opts.numFrames) {
-      break;
-    }
+ 
   }
 
   total_epf = PROC_EPC*NCORES/(total_fps/i);
