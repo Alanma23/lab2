@@ -55,7 +55,7 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
     }
     
     // remaining pixels in this row (scalar)
-    for (; j < img.cols; j++) {
+    for (j=0; j < img.cols; j++) {
       int color = (29 * img.data[rgb_offset + j*3] + 
                    150 * img.data[rgb_offset + j*3 + 1] + 
                    77 * img.data[rgb_offset + j*3 + 2]) >> 8;
@@ -79,7 +79,7 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
   int start_i = (start_row == 0) ? 1 : start_row;
   int end_i = (end_row >= img_gray.rows) ? img_gray.rows - 1 : end_row;
 
-  // Cache base pointers
+  // base pointers
   unsigned char* img_data = img_gray.data;
   unsigned char* out_data = img_sobel_out.data;
 
@@ -90,10 +90,10 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
     unsigned char* next_row = img_data + IMG_WIDTH * (i + 1);
     unsigned char* out_row = out_data + IMG_WIDTH * i;
     
-    int j = 1;
+    int j;
     
-    // Vectorized 8 pixels at a time
-    for (; j <= img_gray.cols - 9; j += 8) {
+    // 8 pixels at a time
+    for (j = 1; j < img_gray.cols - 8; j += 8) {
       // Load 16 pixels from each row
       uint8x16_t prev = vld1q_u8(prev_row + j - 1);
       uint8x16_t curr = vld1q_u8(curr_row + j - 1);
@@ -111,7 +111,7 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
       uint8x8_t next_m = vext_u8(vget_low_u8(next), vget_high_u8(next), 1);
       uint8x8_t next_r = vext_u8(vget_low_u8(next), vget_high_u8(next), 2);
       
-      // Convert to 16-bit arithmetic
+      //  sign-16-bit arithmetic
       int16x8_t prev_l16 = vreinterpretq_s16_u16(vmovl_u8(prev_l));
       int16x8_t prev_m16 = vreinterpretq_s16_u16(vmovl_u8(prev_m));
       int16x8_t prev_r16 = vreinterpretq_s16_u16(vmovl_u8(prev_r));
@@ -121,19 +121,19 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
       int16x8_t next_m16 = vreinterpretq_s16_u16(vmovl_u8(next_m));
       int16x8_t next_r16 = vreinterpretq_s16_u16(vmovl_u8(next_r));
       
-      // X gradient: [-1 0 1; -2 0 2; -1 0 1]
+      // G_x = (prev_{r}-prev_{l}) + 2(curr_{r}-curr_{l}) + (next_{r}-next_{l})
       int16x8_t gx = vsubq_s16(prev_r16, prev_l16);
       gx = vaddq_s16(gx, vshlq_n_s16(vsubq_s16(curr_r16, curr_l16), 1));
       gx = vaddq_s16(gx, vsubq_s16(next_r16, next_l16));
       gx = vabsq_s16(gx);
       
-      // Y gradient: [-1 -2 -1; 0 0 0; 1 2 1]
+      // G_y = (next_l-prev_l) + 2(next_m-prev_m) + (next_r-prev_r)
       int16x8_t gy = vsubq_s16(next_l16, prev_l16);
       gy = vaddq_s16(gy, vshlq_n_s16(vsubq_s16(next_m16, prev_m16), 1));
       gy = vaddq_s16(gy, vsubq_s16(next_r16, prev_r16));
       gy = vabsq_s16(gy);
       
-      // Combine
+      // comb
       int16x8_t mag = vaddq_s16(gx, gy);
       uint8x8_t result = vqmovun_s16(mag);
       
@@ -142,7 +142,7 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
     }
     
     // Scalar for remaining pixels
-    for (; j < img_gray.cols - 1; j++) {
+    for (j=1; j < img_gray.cols - 1; j++) {
       int gx = abs((int)prev_row[j+1] - (int)prev_row[j-1] +
                    2*((int)curr_row[j+1] - (int)curr_row[j-1]) +
                    (int)next_row[j+1] - (int)next_row[j-1]);
