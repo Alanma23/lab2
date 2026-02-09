@@ -8,6 +8,9 @@ using namespace cv;
  * Output: None directly. Modifies a ref parameter img_gray_out
  * Desc: This module converts the image to grayscale
  ********************************************/
+
+ #include <arm_neon.h>
+ 
 // void grayScale(Mat& img, Mat& img_gray_out)
 // {
 //   // double color;
@@ -26,18 +29,34 @@ using namespace cv;
 //   }
 // }
 
-// Optimized
 void grayScale(Mat& img, Mat& img_gray_out)
 {
-  double color;
-  int gray_index = 0;
+  // double color;
+  int total_pixels = img.rows * img.cols;
+  int i;
+  
+  // Weights -> integers (divide by 256) B = 29, G = 150, R = 77 
+  for (int i=0; i< total_pixels - 7; i+= 8) {
+    uint8x8x3_t rgb = vld3_u8(&img.data[i*3]); // 210-RGB
 
-  // Convert to grayscale
-  total_bytes = img.rows * STEP0; // num rows * bytes per row
-  for (int n=0; n<total_bytes; n+=3, gray_index++) {
-    img_gray_out.data[gray_index] = .114*img.data[n]     +
-                                    .587*img.data[n + 1] +
-                                    .299*img.data[n + 2];
+    uint16x8_t r16 = vmovl_u8(rgb.val[2]); // to prevent overflow 16
+    uint16x8_t g16 = vmovl_u8(rgb.val[1]);
+    uint16x8_t b16 = vmovl_u8(rgb.val[0]);
+
+    uint16x8_t gray16 = vmulq_n_u16(b16, 29);
+    gray16 = vmlaq_n_u16(gray16, g16, 150);  // MA Ops
+    gray16 = vmlaq_n_u16(gray16, r16, 77);
+
+    uint8x8_t gray8 = vshrn_n_u16(gray16, 8);
+
+    vst1_u8(&img_gray_out.data[i], gray8);
+  }
+
+  for(int i = 0; i < total_pixels; i++) {
+    int color = (29 * img.data[i*3] + 
+      150 * img.data[i*3 + 1] + 
+      77 * img.data[i*3 + 2]) >> 8;
+    img_gray_out.data[i] = color;
   }
 }
 
