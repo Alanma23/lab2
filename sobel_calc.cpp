@@ -74,20 +74,24 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
  *  to finish the Sobel calculation
  ********************************************/
 
- void sobelCalc(Mat& img_gray, Mat& img_sobel_out)
- {
-   unsigned short sobelx, sobely, sobel;
- 
-   uchar* prev_row;
-   uchar* curr_row;
-   uchar* next_row;
- 
- // (i-1,j-1)  (i-1,j)  (i-1,j+1)
- // (i  ,j-1)  (i  ,j)  (i  ,j+1)
- // (i+1,j-1)  (i+1,j)  (i+1,j+1)
- 
+void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
+{
+  unsigned short sobelx, sobely, sobel;
+
+  uchar* prev_row;
+  uchar* curr_row;
+  uchar* next_row;
+
+// (i-1,j-1)  (i-1,j)  (i-1,j+1)
+// (i  ,j-1)  (i  ,j)  (i  ,j+1)
+// (i+1,j-1)  (i+1,j)  (i+1,j+1)
+
   // Optimized convolution
-  for (int i=1; i<img_gray.rows-1; i++) {
+  // Clamp to valid range (need neighbors at i-1 and i+1)
+  int start = (start_row < 1) ? 1 : start_row;
+  int end = (end_row > img_gray.rows - 1) ? img_gray.rows - 1 : end_row;
+  
+  for (int i=start; i<end; i++) {
 
     prev_row = img_gray.ptr<uchar>(i-1);
     curr_row = img_gray.ptr<uchar>(i);
