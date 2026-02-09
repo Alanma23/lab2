@@ -76,48 +76,83 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
 
 void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
 {
-  unsigned short sobelx, sobely, sobel;
+  int start_i = (start_row == 0) ? 1 : start_row;
+  int end_i = (end_row >= img_gray.rows) ? img_gray.rows - 1 : end_row;
 
-  uchar* prev_row;
-  uchar* curr_row;
-  uchar* next_row;
+  // Cache base pointers
+  unsigned char* img_data = img_gray.data;
+  unsigned char* out_data = img_sobel_out.data;
 
-// (i-1,j-1)  (i-1,j)  (i-1,j+1)
-// (i  ,j-1)  (i  ,j)  (i  ,j+1)
-// (i+1,j-1)  (i+1,j)  (i+1,j+1)
-
-  // Optimized convolution
-  // Clamp to valid range (need neighbors at i-1 and i+1)
-  int start = (start_row < 1) ? 1 : start_row;
-  int end = (end_row > img_gray.rows - 1) ? img_gray.rows - 1 : end_row;
-  
-  for (int i=start; i<end; i++) {
-
-    prev_row = img_gray.ptr<uchar>(i-1);
-    curr_row = img_gray.ptr<uchar>(i);
-    next_row = img_gray.ptr<uchar>(i+1);
- 
-     for (int j=1; j<img_gray.cols-1; j++) { // this loop hits an individual pixel
-       // sobel math
-       int right = j+1;
-       int left = j-1;
-       sobelx = abs(prev_row[right] -
-                   prev_row[left] +
-                 2*curr_row[right] -
-                 2*curr_row[left] +
-                   next_row[right] -
-                   next_row[left]);
- 
-       sobely = abs(-prev_row[left] -
-                   2*prev_row[j] -
-                     prev_row[right] +
-                     next_row[left] +
-                   2*next_row[j] +
-                     next_row[right]);
-       
-       sobel = sobelx + sobely;              // combine the two
-       sobel = (sobel > 255) ? 255 : sobel;  // check upper bound
-       img_sobel_out.data[IMG_WIDTH*(i) + j] = sobel;
-     }
-   }
- }
+  // Process rows
+  for (int i = start_i; i < end_i; i++) {
+    unsigned char* prev_row = img_data + IMG_WIDTH * (i - 1);
+    unsigned char* curr_row = img_data + IMG_WIDTH * i;
+    unsigned char* next_row = img_data + IMG_WIDTH * (i + 1);
+    unsigned char* out_row = out_data + IMG_WIDTH * i;
+    
+    int j = 1;
+    
+    // Vectorized 8 pixels at a time
+    for (; j <= img_gray.cols - 9; j += 8) {
+      // Load 16 pixels from each row
+      uint8x16_t prev = vld1q_u8(prev_row + j - 1);
+      uint8x16_t curr = vld1q_u8(curr_row + j - 1);
+      uint8x16_t next = vld1q_u8(next_row + j - 1);
+      
+      // Extract 8-byte windows
+      uint8x8_t prev_l = vget_low_u8(prev);
+      uint8x8_t prev_m = vext_u8(vget_low_u8(prev), vget_high_u8(prev), 1);
+      uint8x8_t prev_r = vext_u8(vget_low_u8(prev), vget_high_u8(prev), 2);
+      
+      uint8x8_t curr_l = vget_low_u8(curr);
+      uint8x8_t curr_r = vext_u8(vget_low_u8(curr), vget_high_u8(curr), 2);
+      
+      uint8x8_t next_l = vget_low_u8(next);
+      uint8x8_t next_m = vext_u8(vget_low_u8(next), vget_high_u8(next), 1);
+      uint8x8_t next_r = vext_u8(vget_low_u8(next), vget_high_u8(next), 2);
+      
+      // Convert to 16-bit arithmetic
+      int16x8_t prev_l16 = vreinterpretq_s16_u16(vmovl_u8(prev_l));
+      int16x8_t prev_m16 = vreinterpretq_s16_u16(vmovl_u8(prev_m));
+      int16x8_t prev_r16 = vreinterpretq_s16_u16(vmovl_u8(prev_r));
+      int16x8_t curr_l16 = vreinterpretq_s16_u16(vmovl_u8(curr_l));
+      int16x8_t curr_r16 = vreinterpretq_s16_u16(vmovl_u8(curr_r));
+      int16x8_t next_l16 = vreinterpretq_s16_u16(vmovl_u8(next_l));
+      int16x8_t next_m16 = vreinterpretq_s16_u16(vmovl_u8(next_m));
+      int16x8_t next_r16 = vreinterpretq_s16_u16(vmovl_u8(next_r));
+      
+      // X gradient: [-1 0 1; -2 0 2; -1 0 1]
+      int16x8_t gx = vsubq_s16(prev_r16, prev_l16);
+      gx = vaddq_s16(gx, vshlq_n_s16(vsubq_s16(curr_r16, curr_l16), 1));
+      gx = vaddq_s16(gx, vsubq_s16(next_r16, next_l16));
+      gx = vabsq_s16(gx);
+      
+      // Y gradient: [-1 -2 -1; 0 0 0; 1 2 1]
+      int16x8_t gy = vsubq_s16(next_l16, prev_l16);
+      gy = vaddq_s16(gy, vshlq_n_s16(vsubq_s16(next_m16, prev_m16), 1));
+      gy = vaddq_s16(gy, vsubq_s16(next_r16, prev_r16));
+      gy = vabsq_s16(gy);
+      
+      // Combine
+      int16x8_t mag = vaddq_s16(gx, gy);
+      uint8x8_t result = vqmovun_s16(mag);
+      
+      // Store
+      vst1_u8(out_row + j, result);
+    }
+    
+    // Scalar for remaining pixels
+    for (; j < img_gray.cols - 1; j++) {
+      int gx = abs((int)prev_row[j+1] - (int)prev_row[j-1] +
+                   2*((int)curr_row[j+1] - (int)curr_row[j-1]) +
+                   (int)next_row[j+1] - (int)next_row[j-1]);
+      
+      int gy = abs((int)next_row[j-1] - (int)prev_row[j-1] +
+                   2*((int)next_row[j] - (int)prev_row[j]) +
+                   (int)next_row[j+1] - (int)prev_row[j+1]);
+      
+      int mag = gx + gy;
+      out_row[j] = (mag > 255) ? 255 : mag;
+    }
+  }
+}
