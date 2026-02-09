@@ -74,41 +74,46 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
  *  to finish the Sobel calculation
  ********************************************/
 
-// EDITS: FUSED LOOP operations
-void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
-{
-  // Apply Sobel filter to black & white image
-  unsigned short sobel_x, sobel_y, sobel_comb;
-
-  // Handle boundaries: Sobel needs i-1 and i+1
-  int start_i = (start_row == 0) ? 1 : start_row;
-  int end_i = (end_row >= img_gray.rows) ? img_gray.rows - 1 : end_row;
-
-  // Calculate x and y convolutions, then combine (fused loop)
-  for (int i = start_i; i < end_i; i++) {
-    for (int j = 1; j < img_gray.cols - 1; j++) {
-      // X gradient
-      sobel_x = abs(img_gray.data[IMG_WIDTH*(i-1) + (j-1)] -
-		  img_gray.data[IMG_WIDTH*(i+1) + (j-1)] +
-		  2*img_gray.data[IMG_WIDTH*(i-1) + (j)] -
-		  2*img_gray.data[IMG_WIDTH*(i+1) + (j)] +
-		  img_gray.data[IMG_WIDTH*(i-1) + (j+1)] -
-		  img_gray.data[IMG_WIDTH*(i+1) + (j+1)]);
-      sobel_x = (sobel_x > 255) ? 255 : sobel_x;
-      
-      // Y gradient
-      sobel_y = abs(img_gray.data[IMG_WIDTH*(i-1) + (j-1)] -
-		   img_gray.data[IMG_WIDTH*(i-1) + (j+1)] +
-		   2*img_gray.data[IMG_WIDTH*(i) + (j-1)] -
-		   2*img_gray.data[IMG_WIDTH*(i) + (j+1)] +
-		   img_gray.data[IMG_WIDTH*(i+1) + (j-1)] -
-		   img_gray.data[IMG_WIDTH*(i+1) + (j+1)]);
-      sobel_y = (sobel_y > 255) ? 255 : sobel_y;
-  
-      // Combine the two convolutions
-      sobel_comb = sobel_x + sobel_y;
-      sobel_comb = (sobel_comb > 255) ? 255 : sobel_comb;
-      img_sobel_out.data[IMG_WIDTH*i + j] = sobel_comb;
-    }
-  }
-}
+ void sobelCalc(Mat& img_gray, Mat& img_sobel_out)
+ {
+   unsigned short sobelx, sobely, sobel;
+ 
+   uchar* prev_row;
+   uchar* curr_row;
+   uchar* next_row;
+ 
+ // (i-1,j-1)  (i-1,j)  (i-1,j+1)
+ // (i  ,j-1)  (i  ,j)  (i  ,j+1)
+ // (i+1,j-1)  (i+1,j)  (i+1,j+1)
+ 
+   // Optimized convolution
+   for (int i=1; i<img_gray.rows-1; i++) {
+ 
+     prev_row = image_gray.ptr<uchar>(i-1);
+     curr_row = image_gray.ptr<uchar>(i);
+     next_row = image_gray.ptr<uchar>(i+1);
+ 
+     for (int j=1; j<img_gray.cols-1; j++) { // this loop hits an individual pixel
+       // sobel math
+       int right = j+1;
+       int left = j-1;
+       sobelx = abs(prev_row[right] -
+                   prev_row[left] +
+                 2*curr_row[right] -
+                 2*curr_row[left] +
+                   next_row[right] -
+                   next_row[left]);
+ 
+       sobely = abs(-prev_row[left] -
+                   2*prev_row[j] -
+                     prev_row[right] +
+                     next_row[left] +
+                   2*next_row[j] +
+                     next_row[right]);
+       
+       sobel = sobelx + sobely;              // combine the two
+       sobel = (sobel > 255) ? 255 : sobel;  // check upper bound
+       img_sobel_out.data[IMG_WIDTH*(i) + j] = sobel;
+     }
+   }
+ }
