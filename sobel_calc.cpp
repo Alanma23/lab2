@@ -86,12 +86,12 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
  // (i  ,j-1)  (i  ,j)  (i  ,j+1)
  // (i+1,j-1)  (i+1,j)  (i+1,j+1)
  
-   // Optimized convolution
-   for (int i=1; i<img_gray.rows-1; i++) {
- 
-     prev_row = image_gray.ptr<uchar>(i-1);
-     curr_row = image_gray.ptr<uchar>(i);
-     next_row = image_gray.ptr<uchar>(i+1);
+  // Optimized convolution
+  for (int i=1; i<img_gray.rows-1; i++) {
+
+    prev_row = img_gray.ptr<uchar>(i-1);
+    curr_row = img_gray.ptr<uchar>(i);
+    next_row = img_gray.ptr<uchar>(i+1);
  
      for (int j=1; j<img_gray.cols-1; j++) { // this loop hits an individual pixel
        // sobel math
