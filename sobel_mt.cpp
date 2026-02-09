@@ -92,7 +92,7 @@ void *runSobelMT(void *ptr)
 
     // LAB 2, PART 2: Start parallel section
     pc_start(&perf_counters);
-    grayScale(src, img_gray);
+    grayScale(src, img_gray, 0, src.rows);
     pc_stop(&perf_counters);
 
     gray_time = perf_counters.cycles.count;
@@ -100,7 +100,7 @@ void *runSobelMT(void *ptr)
     sobel_ic += perf_counters.ic.count;
 
     pc_start(&perf_counters);
-    sobelCalc(img_gray, img_sobel);
+    sobelCalc(img_gray, img_sobel, 0, img_gray.rows);
     pc_stop(&perf_counters);
 
     sobel_time = perf_counters.cycles.count;
