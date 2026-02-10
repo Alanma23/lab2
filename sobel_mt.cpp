@@ -86,14 +86,15 @@ void *runSobelMT(void *ptr)
     // Thread 0: Capture frame
     if (tid == 0) {
       pc_start(&perf_counters);
-      src = cvQueryFrame(video_cap);
+      Mat src0 = cvQueryFrame(video_cap);
       pc_stop(&perf_counters);
+      src0.copyTo(src);
       
       cap_time = perf_counters.cycles.count;
       sobel_l1cm = perf_counters.l1_misses.count;
       sobel_ic = perf_counters.ic.count;
     }
-
+    
     // BARRIER 1m, Wait for frame to be captured and ready
     pthread_barrier_wait(&grayscale_barrier);
 
