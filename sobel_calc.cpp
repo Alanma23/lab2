@@ -55,7 +55,7 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
     }
     
     // remaining pixels in this row (scalar)
-    for (j=0; j < img.cols; j++) {
+    for (; j < img.cols; j++) {
       int color = (29 * img.data[rgb_offset + j*3] + 
                    150 * img.data[rgb_offset + j*3 + 1] + 
                    77 * img.data[rgb_offset + j*3 + 2]) >> 8;
@@ -142,7 +142,7 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
     }
     
     // Scalar for remaining pixels
-    for (j=1; j < img_gray.cols - 1; j++) {
+    for (; j < img_gray.cols - 1; j++) {
       int gx = abs((int)prev_row[j+1] - (int)prev_row[j-1] +
                    2*((int)curr_row[j+1] - (int)curr_row[j-1]) +
                    (int)next_row[j+1] - (int)next_row[j-1]);

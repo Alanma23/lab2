@@ -25,6 +25,7 @@ static Mat img_gray, img_sobel;
 static float total_fps, total_ipc, total_epf;
 static float gray_total, sobel_total, cap_total, disp_total;
 static float sobel_ic_total, sobel_l1cm_total;
+static volatile bool should_exit = false;
 
 /*******************************************
  * Model: runSobelMT
@@ -75,12 +76,15 @@ void *runSobelMT(void *ptr)
   // Keep track of the frames
   int i = 0;
 
-  while (1) {
-    // Thread 0: Allocate memory and capture frame
-    if (tid == 0) {
-      img_gray = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
-      img_sobel = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
+  // Allocate memory once before the loop (Thread 0 only)
+  if (tid == 0) {
+    img_gray = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
+    img_sobel = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
+  }
 
+  while (1) {
+    // Thread 0: Capture frame
+    if (tid == 0) {
       pc_start(&perf_counters);
       src = cvQueryFrame(video_cap);
       pc_stop(&perf_counters);
@@ -156,6 +160,7 @@ void *runSobelMT(void *ptr)
       // exit condition
       char c = cvWaitKey(10);
       if (c == 'q' || i >= opts.numFrames) {
+        should_exit = true;
         pthread_barrier_wait(&endSobel);  // Signal Thread 1 to exit
         break;
       }
@@ -163,6 +168,7 @@ void *runSobelMT(void *ptr)
 
     // BARRIER 4, synch before next frame or exit
     pthread_barrier_wait(&endSobel);
+    if (should_exit) break;
   }
 
   // t0 Write results file and cleanup
