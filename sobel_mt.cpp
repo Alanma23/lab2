@@ -54,27 +54,22 @@ void *runSobelMT(void *ptr)
 
   int tid = (pthread_equal(thread0_id, myID)) ? 0 : 1;
 
-  // // For now, we just kill the second thread. It's up to you to get it to compute
-  // // the other half of the image.
-  // if (myID != thread0_id) {
-  //   pthread_barrier_wait(&endSobel);
-  //   return NULL;
-  // }
-
-  pc_init(&perf_counters, 0);
+  // Only Thread 0 needs performance counters
+  if (tid == 0) {
+    pc_init(&perf_counters, 0);
+  }
 
   // Start algorithm
   // video capture stuff is for thread0 only
-  CvCapture* video_cap;
+  CvCapture* video_cap = NULL;
   if (tid == 0) {
     if (opts.webcam) {
       video_cap = cvCreateCameraCapture(-1);
     } else {
       video_cap = cvCreateFileCapture(opts.videoFile);
     }
-  video_cap = cvCreateFileCapture(opts.videoFile);
-  cvSetCaptureProperty(video_cap, CV_CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
-  cvSetCaptureProperty(video_cap, CV_CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
+    cvSetCaptureProperty(video_cap, CV_CAP_PROP_FRAME_WIDTH, IMG_WIDTH);
+    cvSetCaptureProperty(video_cap, CV_CAP_PROP_FRAME_HEIGHT, IMG_HEIGHT);
   }
 
   // Keep track of the frames
@@ -103,24 +98,35 @@ void *runSobelMT(void *ptr)
     int endrow = (tid == 0) ? IMG_HEIGHT / 2 : IMG_HEIGHT;
     
     // LAB 2, PART 2: Start parallel section
-    pc_start(&perf_counters);
-    grayScale(src, img_gray, startrow, endrow);
-    pc_stop(&perf_counters);
+    // Only Thread 0 measures performance to eliminate contention
+    if (tid == 0) {
+      pc_start(&perf_counters);
+    }
     
-    gray_time = perf_counters.cycles.count;
-    sobel_l1cm += perf_counters.l1_misses.count;
-    sobel_ic += perf_counters.ic.count;
+    grayScale(src, img_gray, startrow, endrow);
+    
+    if (tid == 0) {
+      pc_stop(&perf_counters);
+      gray_time = perf_counters.cycles.count;
+      sobel_l1cm += perf_counters.l1_misses.count;
+      sobel_ic += perf_counters.ic.count;
+    }
 
     // BARRIER 2, wait for both threads to finish grayscale
     pthread_barrier_wait(&sobel_barrier);
 
-    pc_start(&perf_counters);
+    if (tid == 0) {
+      pc_start(&perf_counters);
+    }
+    
     sobelCalc(img_gray, img_sobel, startrow, endrow);
-    pc_stop(&perf_counters);
-
-    sobel_time = perf_counters.cycles.count;
-    sobel_l1cm += perf_counters.l1_misses.count;
-    sobel_ic += perf_counters.ic.count;
+    
+    if (tid == 0) {
+      pc_stop(&perf_counters);
+      sobel_time = perf_counters.cycles.count;
+      sobel_l1cm += perf_counters.l1_misses.count;
+      sobel_ic += perf_counters.ic.count;
+    }
 
     // BARRIER 3, wait for both threads to finish Sobel
     pthread_barrier_wait(&endSobel);
