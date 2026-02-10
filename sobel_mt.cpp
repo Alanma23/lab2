@@ -81,92 +81,111 @@ void *runSobelMT(void *ptr)
   int i = 0;
 
   while (1) {
-    // Allocate memory to hold grayscale and sobel images
-    img_gray = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
-    img_sobel = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
+    // Thread 0: Allocate memory and capture frame
+    if (tid == 0) {
+      img_gray = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
+      img_sobel = Mat(IMG_HEIGHT, IMG_WIDTH, CV_8UC1);
 
-    pc_start(&perf_counters);
-    src = cvQueryFrame(video_cap);
-    pc_stop(&perf_counters);
+      pc_start(&perf_counters);
+      src = cvQueryFrame(video_cap);
+      pc_stop(&perf_counters);
+      
+      cap_time = perf_counters.cycles.count;
+      sobel_l1cm = perf_counters.l1_misses.count;
+      sobel_ic = perf_counters.ic.count;
+    }
 
-    // split up rows between 2 threads
-    int startrow = (tid == 0) ? 0 : src.rows / 2;
-    int endrow = (tid == 0) ? src.rows / 2 : src.rows;
+    // BARRIER 1m, Wait for frame to be captured and ready
+    pthread_barrier_wait(&grayscale_barrier);
+
+    // Both threads: Process their half of the image
+    int startrow = (tid == 0) ? 0 : IMG_HEIGHT / 2;
+    int endrow = (tid == 0) ? IMG_HEIGHT / 2 : IMG_HEIGHT;
     
-    cap_time = perf_counters.cycles.count;
-    sobel_l1cm = perf_counters.l1_misses.count;
-    sobel_ic = perf_counters.ic.count;
-
     // LAB 2, PART 2: Start parallel section
     pc_start(&perf_counters);
     grayScale(src, img_gray, startrow, endrow);
     pc_stop(&perf_counters);
-    pthread_barrier_wait(&grayscale_barrier);  // wait for both threads to finish grayscaling
-
+    
     gray_time = perf_counters.cycles.count;
     sobel_l1cm += perf_counters.l1_misses.count;
     sobel_ic += perf_counters.ic.count;
 
+    // BARRIER 2, wait for both threads to finish grayscale
+    pthread_barrier_wait(&sobel_barrier);
+
     pc_start(&perf_counters);
     sobelCalc(img_gray, img_sobel, startrow, endrow);
     pc_stop(&perf_counters);
-    pthread_barrier_wait(&sobel_barrier);     // wait for both threads to finish sobeling
 
     sobel_time = perf_counters.cycles.count;
     sobel_l1cm += perf_counters.l1_misses.count;
     sobel_ic += perf_counters.ic.count;
-    // LAB 2, PART 2: End parallel section
 
-    // end stuff
+    // BARRIER 3, wait for both threads to finish Sobel
+    pthread_barrier_wait(&endSobel);
+
+    // Thread 0 disp
     if (tid == 0) {
       pc_start(&perf_counters);
       namedWindow(top, CV_WINDOW_AUTOSIZE);
       imshow(top, img_sobel);
       pc_stop(&perf_counters);
-      char c = cvWaitKey(10);
-      if (c == 'q' || i >= opts.numFrames) {          // Press q to exit
-        break;
-      }
+      
       disp_time = perf_counters.cycles.count;
       sobel_l1cm += perf_counters.l1_misses.count;
       sobel_ic += perf_counters.ic.count;
+
+      // t0 stats
+      cap_total += cap_time;
+      gray_total += gray_time;
+      sobel_total += sobel_time;
+      sobel_l1cm_total += sobel_l1cm;
+      sobel_ic_total += sobel_ic;
+      disp_total += disp_time;
+      total_fps += PROC_FREQ/float(cap_time + disp_time + gray_time + sobel_time);
+      total_ipc += float(sobel_ic/float(cap_time + disp_time + gray_time + sobel_time));
       i++;
+
+      // exit condition
+      char c = cvWaitKey(10);
+      if (c == 'q' || i >= opts.numFrames) {
+        pthread_barrier_wait(&endSobel);  // Signal Thread 1 to exit
+        break;
+      }
     }
 
-    // TODO: protect these values
-    cap_total += cap_time;
-    gray_total += gray_time;
-    sobel_total += sobel_time;
-    sobel_l1cm_total += sobel_l1cm;
-    sobel_ic_total += sobel_ic;
-    disp_total += disp_time;
-    total_fps += PROC_FREQ/float(cap_time + disp_time + gray_time + sobel_time);
-    total_ipc += float(sobel_ic/float(cap_time + disp_time + gray_time + sobel_time));
- 
+    // BARRIER 4, synch before next frame or exit
+    pthread_barrier_wait(&endSobel);
   }
 
-  total_epf = PROC_EPC*NCORES/(total_fps/i);
-  float total_time = float(gray_total + sobel_total + cap_total + disp_total);
+  // t0 Write results file and cleanup
+  if (tid == 0) {
+    total_epf = PROC_EPC*NCORES/(total_fps/i);
+    float total_time = float(gray_total + sobel_total + cap_total + disp_total);
 
-  results_file.open("mt_perf.csv", ios::out);
-  results_file << "Percent of time per function" << endl;
-  results_file << "Capture, " << (cap_total/total_time)*100 << "%" << endl;
-  results_file << "Grayscale, " << (gray_total/total_time)*100 << "%" << endl;
-  results_file << "Sobel, " << (sobel_total/total_time)*100 << "%" << endl;
-  results_file << "Display, " << (disp_total/total_time)*100 << "%" << endl;
-  results_file << "\nSummary" << endl;
-  results_file << "Frames per second, " << total_fps/i << endl;
-  results_file << "Cycles per frame, " << total_time/i << endl;
-  results_file << "Energy per frames (mJ), " << total_epf*1000 << endl;
-  results_file << "Total frames, " << i << endl;
-  results_file << "\nHardware Stats (Cap + Gray + Sobel + Display)" << endl;
-  results_file << "Instructions per cycle, " << total_ipc/i << endl;
-  results_file << "L1 misses per frame, " << sobel_l1cm_total/i << endl;
-  results_file << "L1 misses per instruction, " << sobel_l1cm_total/sobel_ic_total << endl;
-  results_file << "Instruction count per frame, " << sobel_ic_total/i << endl;
+    results_file.open("mt_perf.csv", ios::out);
+    results_file << "Percent of time per function" << endl;
+    results_file << "Capture, " << (cap_total/total_time)*100 << "%" << endl;
+    results_file << "Grayscale, " << (gray_total/total_time)*100 << "%" << endl;
+    results_file << "Sobel, " << (sobel_total/total_time)*100 << "%" << endl;
+    results_file << "Display, " << (disp_total/total_time)*100 << "%" << endl;
+    results_file << "\nSummary" << endl;
+    results_file << "Frames per second, " << total_fps/i << endl;
+    results_file << "Cycles per frame, " << total_time/i << endl;
+    results_file << "Energy per frames (mJ), " << total_epf*1000 << endl;
+    results_file << "Total frames, " << i << endl;
+    results_file << "\nHardware Stats (Cap + Gray + Sobel + Display)" << endl;
+    results_file << "Instructions per cycle, " << total_ipc/i << endl;
+    results_file << "L1 misses per frame, " << sobel_l1cm_total/i << endl;
+    results_file << "L1 misses per instruction, " << sobel_l1cm_total/sobel_ic_total << endl;
+    results_file << "Instruction count per frame, " << sobel_ic_total/i << endl;
 
-  cvReleaseCapture(&video_cap);
-  results_file.close();
+    cvReleaseCapture(&video_cap);
+    results_file.close();
+  }
+
+  // Final synchronization before exit
   pthread_barrier_wait(&endSobel);
   return NULL;
 }
