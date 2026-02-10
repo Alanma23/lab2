@@ -94,8 +94,8 @@ void *runSobelMT(void *ptr)
     pthread_barrier_wait(&grayscale_barrier);
 
     // Both threads: Process their half of the image
-    int startrow = (tid == 0) ? 0 : IMG_HEIGHT / 2;
-    int endrow = (tid == 0) ? IMG_HEIGHT / 2 : IMG_HEIGHT;
+    const int startrow = (tid == 0) ? 0 : (IMG_HEIGHT / 2);
+    const int endrow = (tid == 0) ? (IMG_HEIGHT / 2) : IMG_HEIGHT;
     
     // LAB 2, PART 2: Start parallel section
     // Only Thread 0 measures performance to eliminate contention
