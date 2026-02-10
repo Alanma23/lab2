@@ -95,10 +95,10 @@ void *runSobelMT(void *ptr)
       sobel_ic = perf_counters.ic.count;
     }
     
-    // BARRIER 1m, Wait for frame to be captured and ready (dont read until thread0 is for sure done grabbing frame)
+    // barrier 1, Wait for frame to be captured and ready (dont read until t0 is for sure done grabbing frame)
     pthread_barrier_wait(&grayscale_barrier);
 
-    // Both threads: Process their half of the image
+    // Both threads Process their half of the image
     const int startrow = (tid == 0) ? 0 : (IMG_HEIGHT / 2) - 1;
     const int endrow = (tid == 0) ? (IMG_HEIGHT / 2) + 1: IMG_HEIGHT;
     
@@ -117,7 +117,7 @@ void *runSobelMT(void *ptr)
       sobel_ic += perf_counters.ic.count;
     }
 
-    // BARRIER 2, wait for both threads to finish grayscale
+    // barrier 2, wait for both threads to finish grayscale
     pthread_barrier_wait(&sobel_barrier);
 
     if (tid == 0) {
@@ -133,7 +133,7 @@ void *runSobelMT(void *ptr)
       sobel_ic += perf_counters.ic.count;
     }
 
-    // BARRIER 3, wait for both threads to finish Sobel
+    // barrier 3, wait for both threads to finish Sobel
     pthread_barrier_wait(&endSobel);
 
     // Thread 0 disp
@@ -167,7 +167,7 @@ void *runSobelMT(void *ptr)
       }
     }
 
-    // BARRIER 4, synch before next frame or exit
+    // barrier 4, synch before next frame or exit
     pthread_barrier_wait(&endSobel);
     if (should_exit) break;
   }

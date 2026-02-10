@@ -39,7 +39,7 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
     
     // Neon vectorized 8 pixels at a time
     for (j = 0; j < img.cols - 7; j += 8) {
-      // Load 8 RGB triplets (24 bytes) using deinterleave
+      // load 8 RGB triplets (24b)
       uint8x8x3_t rgb = vld3_u8(&img.data[rgb_offset + j * 3]);
       
       uint16x8_t b16 = vmovl_u8(rgb.val[0]);
@@ -96,7 +96,7 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
       uint8x16_t curr = vld1q_u8(curr_row + j - 1);
       uint8x16_t next = vld1q_u8(next_row + j - 1);
       
-      // Extract 8-byte windows
+      // Extract 8-byte windows for sobel filter
       uint8x8_t prev_l = vget_low_u8(prev);
       uint8x8_t prev_m = vext_u8(vget_low_u8(prev), vget_high_u8(prev), 1);
       uint8x8_t prev_r = vext_u8(vget_low_u8(prev), vget_high_u8(prev), 2);
@@ -108,7 +108,7 @@ void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
       uint8x8_t next_m = vext_u8(vget_low_u8(next), vget_high_u8(next), 1);
       uint8x8_t next_r = vext_u8(vget_low_u8(next), vget_high_u8(next), 2);
       
-      //  sign-16-bit arithmetic
+      // sign-16-bit arithmetic
       int16x8_t prev_l16 = vreinterpretq_s16_u16(vmovl_u8(prev_l));
       int16x8_t prev_m16 = vreinterpretq_s16_u16(vmovl_u8(prev_m));
       int16x8_t prev_r16 = vreinterpretq_s16_u16(vmovl_u8(prev_r));
