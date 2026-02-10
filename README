@@ -1,5 +1,64 @@
-- Alan Ma, Zhikai Huang, ee180-25@ee180-25z.stanford.edu
+- Alan Ma, Zhikai Huang, ee180-25@ee180-25z.stanford.edu (Group #50)
 - Each partner’s contribution to the assignment
+    Alan:
+    - focused on neon vector intrinsics, sobel_alg and the sobel_calc main functions
+    Zhikai:
+    - focused on the multithread implementation in sobel_mt.cpp
+    Both partners worked across st/mt implementations.
+
 - A brief description of optimizations you tried, the outcome, and some explanation (why it worked / why it did not)
+    - step 1: collapsed and fused loops to reduce overhead
+    - step 2: optimized grayscale function using vector intrinsics. Examined makefile optimization flags including -ftree-vectorize, -mfpu=neon, -funroll-loops, -ffast-math, -march=armv7-a, and -O3
+    - step 3: applied vector intrinsics to sobelcalc function
+    - step 4: created initial draft of multithreading with thread-specific halves of the frames, using mutexes and locks
+    - step 5: tuned barriers and synchronization to ensure the correct threads were calling the right start and end pointers
+
 - Report the final performance for both single thread and multithread (we will verify this with your code submission)
+
+`st_perf.csv`:
+Percent of time per function
+Capture, 40.6357%
+Grayscale, 20.4513%
+Sobel, 19.5139%
+Display, 19.3991%
+
+Summary
+Frames per second, 77.0995
+Cycles per frame, 1.15758e+07
+Energy per frames (mJ), 36.3167
+Total frames, 70
+
+Hardware Stats (Cap + Gray + Sobel + Display)
+Instructions per cycle, 0.74211
+L1 misses per frame, 124177
+L1 misses per instruction, 0.0145849
+Instruction count per frame, 8.5141e+06
+ee180-25@linaro-gnome:~/alan-zhikai/lab2$
+Percent of time per function
+Capture, 50.0998%
+Grayscale, 12.9147%
+Sobel, 12.034%
+Display, 24.9515%
+
+-----------------------------------------
+
+`mt_perf.csv`:
+Summary
+Frames per second, 96.9422
+Cycles per frame, 9.38332e+06
+Energy per frames (mJ), 28.8832
+Total frames, 50
+
+Hardware Stats (Cap + Gray + Sobel + Display)
+Instructions per cycle, 0.780864
+L1 misses per frame, 95391.3
+L1 misses per instruction, 0.0131892
+Instruction count per frame, 7.23252e+06
+ee180-25@linaro-gnome:~/alan-zhikai/lab2$
+
+
 - If you used AI tools, explain how you use it to help with the assignment
+    - used GPT 5.2 to help with initial understanding of NEON vector intrinsics and ways to utilize the functions in simpler examples
+    - drafted ideas and received feedback in iteration loops on next steps
+    - received help with optimization makefile flags
+    - debugged synchronization issues and thrashing in CV2 frames
