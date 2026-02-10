@@ -76,15 +76,17 @@ void grayScale(Mat& img, Mat& img_gray_out, int start_row, int end_row)
 
 void sobelCalc(Mat& img_gray, Mat& img_sobel_out, int start_row, int end_row)
 {
-  int start_i = (start_row == 0) ? 1 : start_row;
-  int end_i = (end_row >= img_gray.rows) ? img_gray.rows - 1 : end_row;
+  // int start_i = (start_row == 0) ? 1 : start_row;
+  // int end_i = (end_row >= img_gray.rows) ? img_gray.rows - 1 : end_row;
+  int start_i = start_row;
+  int end_i = end_row;
 
   // base pointers
   unsigned char* img_data = img_gray.data;
   unsigned char* out_data = img_sobel_out.data;
 
   // Process rows
-  for (int i = start_i; i < end_i; i++) {
+  for (int i = start_i + 1; i < end_i - 1; i++) {
     unsigned char* prev_row = img_data + IMG_WIDTH * (i - 1);
     unsigned char* curr_row = img_data + IMG_WIDTH * i;
     unsigned char* next_row = img_data + IMG_WIDTH * (i + 1);
